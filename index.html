@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Examen Médico HMC 2026</title>
+<meta name="theme-color" content="#0C447C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="HMC 2026">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230C447C'/><text y='.9em' font-size='80' x='10'>🏥</text></svg>">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f0f4f8;min-height:100vh;display:flex;justify-content:center}
@@ -135,6 +142,65 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <button class="btn-primary" onclick="doLogin()">Ingresar al sistema</button>
     <div class="spacer"></div>
     <div class="footer">HMC · Año Fiscal 2026</div>
+    <div style="margin-top:8px;text-align:center">
+      <span style="font-size:11px;color:#94a3b8;cursor:pointer" onclick="abrirAdmin()">⚙️ Administrador</span>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD ADMIN -->
+<div id="sc-dash" class="screen">
+  <div class="hdr">
+    <button class="bk-btn" onclick="goTo('login')">&#8592; Salir</button>
+    <div class="hdr-title">Dashboard Administrativo</div>
+    <div class="hdr-sub">HMC · Examen Médico 2026</div>
+  </div>
+  <div class="body" style="padding:16px;gap:12px;display:flex;flex-direction:column">
+    <button class="btn-primary" onclick="cargarDashboard()" style="margin:0">🔄 Actualizar datos</button>
+    <div id="dash-loading" style="text-align:center;color:#64748b;font-size:14px;padding:20px">Cargando...</div>
+    <div id="dash-content" style="display:none;gap:12px;display:none;flex-direction:column">
+
+      <!-- Tarjeta Total Atendidos -->
+      <div style="background:#0C447C;border-radius:14px;padding:18px;color:#fff">
+        <div style="font-size:12px;opacity:.7;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Total Atendidos</div>
+        <div style="display:flex;gap:16px;align-items:center">
+          <div style="text-align:center;flex:1">
+            <div style="font-size:36px;font-weight:700" id="dash-total">—</div>
+            <div style="font-size:11px;opacity:.8">Total</div>
+          </div>
+          <div style="text-align:center;flex:1;background:rgba(255,255,255,.15);border-radius:10px;padding:10px">
+            <div style="font-size:26px;font-weight:700" id="dash-varones">—</div>
+            <div style="font-size:11px;opacity:.8">👨 Varones</div>
+          </div>
+          <div style="text-align:center;flex:1;background:rgba(255,255,255,.15);border-radius:10px;padding:10px">
+            <div style="font-size:26px;font-weight:700" id="dash-damas">—</div>
+            <div style="font-size:11px;opacity:.8">👩 Damas</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tarjeta Resultados -->
+      <div style="background:#fff;border:2px solid #e2e8f0;border-radius:14px;padding:16px">
+        <div style="font-size:12px;font-weight:700;color:#0C447C;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📋 Usuarios en Resultados</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="font-size:42px;font-weight:700;color:#0C447C" id="dash-resultados">—</div>
+          <div style="font-size:13px;color:#64748b">usuarios con acceso<br>a servicios especiales</div>
+        </div>
+      </div>
+
+      <!-- Atenciones por servicio Fase 1 -->
+      <div style="background:#fff;border:2px solid #dbeafe;border-radius:14px;padding:16px">
+        <div style="font-size:12px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">FASE 1 — Atendidos hoy</div>
+        <div id="dash-f1" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+
+      <!-- Atenciones por servicio Fase 2 -->
+      <div style="background:#fff;border:2px solid #dcfce7;border-radius:14px;padding:16px">
+        <div style="font-size:12px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">FASE 2 — Atendidos hoy</div>
+        <div id="dash-f2" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+
+    </div>
   </div>
 </div>
 
@@ -830,6 +896,96 @@ function afterSave(){
 
 document.getElementById('inp-code').addEventListener('keydown',e=>{if(e.key==='Enter') document.getElementById('inp-pass').focus()});
 document.getElementById('inp-pass').addEventListener('keydown',e=>{if(e.key==='Enter') doLogin()});
+
+// ── ADMIN DASHBOARD ──
+const ADMIN_PASS = 'luisedu';
+const ATENCIONES_URL = 'https://sheetdb.io/api/v1/2cxjbd24pd8jl';
+
+function abrirAdmin(){
+  const p = prompt('Contraseña de administrador:');
+  if(!p) return;
+  if(p !== ADMIN_PASS){ alert('Contraseña incorrecta.'); return; }
+  goTo('dash');
+  cargarDashboard();
+}
+
+async function cargarDashboard(){
+  document.getElementById('dash-loading').style.display='block';
+  document.getElementById('dash-content').style.display='none';
+  try{
+    // 1. Cargar atenciones
+    const rAten = await fetch(ATENCIONES_URL);
+    const atenciones = await rAten.json();
+
+    // 2. Cargar Log para contar varones/damas
+    const rLog = await fetch(ATENCIONES_URL+'?sheet=Log&limit=5000');
+    const logs = await rLog.json();
+
+    // 3. Cargar Resultados
+    const rRes = await fetch(RESULTADOS_URL+'?sheet=Examenes&limit=5000');
+    const resultados = await rRes.json();
+
+    // Contar varones y damas del log
+    let varones=0, damas=0;
+    const cipVistos = new Set();
+    logs.forEach(row=>{
+      const cip = row['CIP']||row['Codigo']||'';
+      if(cipVistos.has(cip)) return;
+      cipVistos.add(cip);
+      // Buscar usuario en RAW
+      const u = Object.values(USERS).flat ? null : null;
+      // Buscar en RAW array
+      const usr = RAW.find(x=>x.k===cip);
+      if(usr){
+        if(usr.s==='M') varones++;
+        else damas++;
+      }
+    });
+    const total = varones + damas;
+
+    document.getElementById('dash-total').textContent = total||'0';
+    document.getElementById('dash-varones').textContent = varones||'0';
+    document.getElementById('dash-damas').textContent = damas||'0';
+    document.getElementById('dash-resultados').textContent = (resultados.length||0);
+
+    // Servicios Fase 1
+    const f1Svcs = ['Laboratorio','Rayos_X','Ginecobstetricia','Dental','Control_Antropométrico','Psicología','Oftalmología','Cardiología'];
+    const f1Icons = ['🧪','🩻','🌸','🦷','⚖️','🧠','👁️','❤️'];
+    const elF1 = document.getElementById('dash-f1');
+    elF1.innerHTML='';
+    f1Svcs.forEach((svc,i)=>{
+      const row = atenciones.find(r=>r['Servicio']===svc)||{};
+      const n = parseInt(row['Atendidos día 1'])||0;
+      elF1.innerHTML+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9">
+        <span style="font-size:16px">${f1Icons[i]}</span>
+        <span style="flex:1;font-size:13px;color:#1e293b">${svc.replace(/_/g,' ')}</span>
+        <span style="font-size:15px;font-weight:700;color:#0C447C">${n}</span>
+      </div>`;
+    });
+
+    // Servicios Fase 2
+    const f2Svcs = ['Otorrinolaringología','Urología','Psiquiatría','Medicina_Interna','Medicina_Preventiva','Neumología','PROMETS'];
+    const f2Icons = ['👂','💊','🧩','🩺','🛡️','🫁','📋'];
+    const elF2 = document.getElementById('dash-f2');
+    elF2.innerHTML='';
+    f2Svcs.forEach((svc,i)=>{
+      const row = atenciones.find(r=>r['Servicio']===svc)||{};
+      const n = parseInt(row['Atendidos día 2'])||0;
+      elF2.innerHTML+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9">
+        <span style="font-size:16px">${f2Icons[i]}</span>
+        <span style="flex:1;font-size:13px;color:#1e293b">${svc.replace(/_/g,' ')}</span>
+        <span style="font-size:15px;font-weight:700;color:#15803d">${n}</span>
+      </div>`;
+    });
+
+    document.getElementById('dash-loading').style.display='none';
+    document.getElementById('dash-content').style.display='flex';
+
+  }catch(e){
+    document.getElementById('dash-loading').textContent='Error cargando datos: '+e.message;
+    console.error(e);
+  }
+}
 </script>
 </body>
 </html>
