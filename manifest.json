@@ -1,0 +1,22 @@
+{
+  "name": "Examen Médico HMC 2026",
+  "short_name": "HMC 2026",
+  "description": "Sistema de Control de Evaluaciones - Hospital Militar Central",
+  "start_url": "/hmc2026/",
+  "display": "standalone",
+  "background_color": "#0C447C",
+  "theme_color": "#0C447C",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%230C447C'/><text y='140' x='20' font-size='150'>🏥</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%230C447C'/><text y='380' x='50' font-size='400'>🏥</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
