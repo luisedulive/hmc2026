@@ -378,41 +378,58 @@ function doLogin(){
 const RESULTADOS_URL='https://sheetdb.io/api/v1/y0kg03sibqp77';
 
 // Cache de usuarios en el Excel de Resultados
-// null = no cargado, [] = cargado vacío, [...] = lista de CIPs
+// null = no cargado aún, false = cargó pero vacío/error, Set = cargado OK
 let RESULTADOS_CACHE = null;
+let RESULTADOS_CARGADO = false;
+
+// Normalizar texto: sin tildes, sin espacios extra, mayúsculas
+function norm(t){
+  return (t||'').toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/\s+/g,' ').trim();
+}
 
 // Cargar lista de Resultados al hacer login
 async function cargarResultados(){
+  RESULTADOS_CARGADO = false;
+  RESULTADOS_CACHE = null;
   try{
-    const r = await fetch(RESULTADOS_URL+'?sheet=Examenes');
+    const r = await fetch(RESULTADOS_URL+'?sheet=Examenes&limit=5000');
+    if(!r.ok) throw new Error('HTTP '+r.status);
     const rows = await r.json();
-    // Normalizar: guardar como set de "NOMBRE|APPATERNO|APMATERNO"
     RESULTADOS_CACHE = new Set();
     rows.forEach(row => {
-      const n = (row['NOMBRE']||'').trim().toUpperCase();
-      const p = (row['APELLIDO PATERNO']||'').trim().toUpperCase();
-      const m = (row['APELLIDO MATERNO']||'').trim().toUpperCase();
-      if(n||p) RESULTADOS_CACHE.add(n+'|'+p+'|'+m);
+      const p = norm(row['APELLIDO PATERNO']||row['apellido paterno']||'');
+      const m = norm(row['APELLIDO MATERNO']||row['apellido materno']||'');
+      const n = norm(row['NOMBRE']||row['nombre']||'');
+      if(p) {
+        // Guardar clave: apellido paterno + primer nombre
+        const primerN = n.split(' ')[0];
+        RESULTADOS_CACHE.add(p+'|'+primerN);
+        // También guardar solo apellido paterno + materno como fallback
+        RESULTADOS_CACHE.add(p+'|'+m);
+      }
     });
-    console.log('✅ Resultados cargados:', RESULTADOS_CACHE.size, 'usuarios');
+    RESULTADOS_CARGADO = true;
+    console.log('✅ Resultados cargados:', RESULTADOS_CACHE.size, 'entradas, filas:', rows.length);
   }catch(e){
-    console.warn('⚠️ No se pudo cargar Resultados, sin bloqueo por Excel:', e);
-    RESULTADOS_CACHE = new Set(); // vacío = sin bloqueo
+    console.warn('⚠️ Error cargando Resultados:', e);
+    RESULTADOS_CACHE = null;
+    RESULTADOS_CARGADO = false;
   }
 }
 
 function usuarioEnResultados(){
-  if(!RESULTADOS_CACHE || !CUR.user) return true; // si no cargó, no bloquear
-  const n  = (CUR.user.n||'').trim().toUpperCase();
-  const p  = (CUR.user.p||'').trim().toUpperCase();
-  const m  = (CUR.user.m||'').trim().toUpperCase();
-  // Buscar coincidencia flexible: primer nombre + apellido paterno
-  const primerNombre = n.split(' ')[0];
-  for(const key of RESULTADOS_CACHE){
-    const [rn,rp,rm] = key.split('|');
-    const rPrimerNombre = (rn||'').split(' ')[0];
-    if(rPrimerNombre===primerNombre && rp===p) return true;
-  }
+  // Si no se cargó el sheet → bloquear por defecto (más seguro)
+  if(!RESULTADOS_CARGADO || !RESULTADOS_CACHE || !CUR.user) return false;
+  const p = norm(CUR.user.p||'');
+  const m = norm(CUR.user.m||'');
+  const n = norm(CUR.user.n||'');
+  const primerN = n.split(' ')[0];
+  // Verificar por apellido paterno + primer nombre
+  if(RESULTADOS_CACHE.has(p+'|'+primerN)) return true;
+  // Verificar por apellido paterno + materno
+  if(RESULTADOS_CACHE.has(p+'|'+m)) return true;
   return false;
 }
 
