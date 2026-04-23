@@ -258,6 +258,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <button class="bk-btn" onclick="goTo('cycles')">&#8592; Volver</button>
     <div class="hdr-title">Fase 2 — Evaluaciones</div>
     <div class="hdr-sub">Escanea el QR de cada consultorio</div>
+    <button onclick="actualizarFase2()" id="btn-actualizar" style="margin-top:8px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;width:100%">🔄 Actualizar servicios</button>
   </div>
   <div class="body">
     <div class="prog-wrap">
@@ -444,8 +445,7 @@ function doLogin(){
 const RESULTADOS_URL='https://sheetdb.io/api/v1/y0kg03sibqp77';
 
 // Cache de usuarios en el Excel de Resultados
-// null = no cargado aún, false = cargó pero vacío/error, Set = cargado OK
-let RESULTADOS_CACHE = null;
+let RESULTADOS_FILAS = [];   // array de filas crudas del sheet
 let RESULTADOS_CARGADO = false;
 
 // Normalizar texto: sin tildes, sin espacios extra, mayúsculas
@@ -463,40 +463,45 @@ async function cargarResultados(){
     const r = await fetch(RESULTADOS_URL+'?sheet=Examenes&limit=5000');
     if(!r.ok) throw new Error('HTTP '+r.status);
     const rows = await r.json();
-    RESULTADOS_CACHE = new Set();
-    rows.forEach(row => {
-      const p = norm(row['APELLIDO PATERNO']||row['apellido paterno']||'');
-      const m = norm(row['APELLIDO MATERNO']||row['apellido materno']||'');
-      const n = norm(row['NOMBRE']||row['nombre']||'');
-      if(p) {
-        // Guardar clave: apellido paterno + primer nombre
-        const primerN = n.split(' ')[0];
-        RESULTADOS_CACHE.add(p+'|'+primerN);
-        // También guardar solo apellido paterno + materno como fallback
-        RESULTADOS_CACHE.add(p+'|'+m);
-      }
-    });
+    RESULTADOS_FILAS = rows.filter(r => r['APELLIDO PATERNO'] || r['apellido paterno']);
     RESULTADOS_CARGADO = true;
-    console.log('✅ Resultados cargados:', RESULTADOS_CACHE.size, 'entradas, filas:', rows.length);
+    console.log('✅ Resultados cargados:', RESULTADOS_FILAS.length, 'filas');
   }catch(e){
     console.warn('⚠️ Error cargando Resultados:', e);
-    RESULTADOS_CACHE = null;
+    RESULTADOS_FILAS = [];
     RESULTADOS_CARGADO = false;
   }
 }
 
-function usuarioEnResultados(){
-  // Si no se cargó el sheet → bloquear por defecto (más seguro)
-  if(!RESULTADOS_CARGADO || !RESULTADOS_CACHE || !CUR.user) return false;
+// Retorna el objeto fila del usuario en Resultados, o null si no está
+function filaUsuarioEnResultados(){
+  if(!RESULTADOS_CARGADO || !RESULTADOS_FILAS || !CUR.user) return null;
   const p = norm(CUR.user.p||'');
   const m = norm(CUR.user.m||'');
   const n = norm(CUR.user.n||'');
   const primerN = n.split(' ')[0];
-  // Verificar por apellido paterno + primer nombre
-  if(RESULTADOS_CACHE.has(p+'|'+primerN)) return true;
-  // Verificar por apellido paterno + materno
-  if(RESULTADOS_CACHE.has(p+'|'+m)) return true;
-  return false;
+  for(const fila of RESULTADOS_FILAS){
+    const rp = norm(fila['APELLIDO PATERNO']||'');
+    const rm = norm(fila['APELLIDO MATERNO']||'');
+    const rn = norm(fila['NOMBRE']||'');
+    const rPrimerN = rn.split(' ')[0];
+    if(rp===p && (rPrimerN===primerN || rm===m)) return fila;
+  }
+  return null;
+}
+
+// Fase 2 idx 1=Urología  → PSA=p permite acceso
+// Fase 2 idx 2=Psiquiatría → Psicologia=p permite acceso
+// Fase 2 idx 5=Neumología  → PLACA=p permite acceso
+// Fase 2 idx 6=PROMETS     → bloqueado por ahora para todos
+function usuarioTieneAcceso(fase, i){
+  const fila = filaUsuarioEnResultados();
+  if(!fila) return false; // no está en el sheet → bloqueado
+  if(fase===2 && i===1) return (fila['PSA']||'').trim().toLowerCase()==='p';
+  if(fase===2 && i===2) return (fila['Psicologia']||'').trim().toLowerCase()==='p';
+  if(fase===2 && i===5) return (fila['PLACA']||'').trim().toLowerCase()==='p';
+  if(fase===2 && i===6) return false; // PROMETS bloqueado por ahora
+  return true;
 }
 
 // Fase 1 idx 2 = Ginecobstetricia → bloqueado para MASCULINO
@@ -510,12 +515,9 @@ function isBloqueadoPorSexo(fase,i){
 }
 
 function isBloqueadoPorResultados(fase,i){
-  // Solo aplica en Fase 2 para índices 1=Urología, 2=Psiquiatría, 5=Neumología, 6=PROMETS
   if(fase!==2) return false;
   if(![1,2,5,6].includes(i)) return false;
-  // Si ya está en Resultados, no bloquear
-  if(usuarioEnResultados()) return false;
-  return true;
+  return !usuarioTieneAcceso(fase,i);
 }
 
 function isBloqueado(fase,i){
@@ -573,6 +575,17 @@ function updateProg(fase){
 }
 
 function startCycle(n){ buildList(n); goTo('c'+n); }
+
+async function actualizarFase2(){
+  const btn = document.getElementById('btn-actualizar');
+  btn.textContent = '⏳ Actualizando...';
+  btn.disabled = true;
+  await cargarResultados();
+  buildList(2);
+  btn.textContent = '✅ Actualizado';
+  btn.disabled = false;
+  setTimeout(()=>{ btn.textContent='🔄 Actualizar servicios'; }, 2000);
+}
 
 // ── QR SCANNER ──
 function openScanner(fase,idx,e){
