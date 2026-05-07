@@ -385,31 +385,45 @@ RAW.forEach(u=>{
 
 // ── PERSISTENCIA LOCAL DEL PROGRESO ──
 // Guarda el avance del usuario en localStorage (por CIP) para que no se pierda al cerrar la app
-const PROG_KEY = (cip) => `hmc_progress_${cip}`;
+const PROG_VER = 'v2'; // versión del esquema (Fase 2 reordenada con Gastroenterología en idx 1)
+const PROG_KEY = (cip) => `hmc_progress_${PROG_VER}_${cip}`;
 
 function guardarProgresoLocal(){
-  if(!CUR.user) return;
+  if(!CUR.user || !CUR.user.k) return;
   try{
-    const data = { done: CUR.done, checks: CUR.checks };
+    const data = {
+      v: PROG_VER,
+      ts: Date.now(),
+      done: { 1: !!CUR.done[1], 2: !!CUR.done[2] },
+      checks: { 1: CUR.checks[1] || {}, 2: CUR.checks[2] || {} }
+    };
     localStorage.setItem(PROG_KEY(CUR.user.k), JSON.stringify(data));
   }catch(e){ console.warn('No se pudo guardar progreso local:', e); }
 }
 
 function cargarProgresoLocal(){
-  if(!CUR.user) return;
+  if(!CUR.user || !CUR.user.k) return;
   try{
     const raw = localStorage.getItem(PROG_KEY(CUR.user.k));
     if(!raw) return;
     const data = JSON.parse(raw);
-    if(data.done) CUR.done = { 1: !!data.done[1], 2: !!data.done[2] };
-    if(data.checks){
+    // Validación defensiva de estructura
+    if(!data || typeof data !== 'object') return;
+    if(data.done && typeof data.done === 'object'){
+      CUR.done = { 1: !!data.done[1], 2: !!data.done[2] };
+    }
+    if(data.checks && typeof data.checks === 'object'){
       CUR.checks = {
-        1: data.checks[1] || {},
-        2: data.checks[2] || {}
+        1: (data.checks[1] && typeof data.checks[1] === 'object') ? data.checks[1] : {},
+        2: (data.checks[2] && typeof data.checks[2] === 'object') ? data.checks[2] : {}
       };
     }
-    console.log('✅ Progreso local cargado:', CUR.done, CUR.checks);
-  }catch(e){ console.warn('No se pudo cargar progreso local:', e); }
+    console.log('✅ Progreso local cargado:', CUR.done);
+  }catch(e){
+    console.warn('Datos locales corruptos, ignorando:', e);
+    // Si los datos están corruptos, limpiarlos
+    try{ localStorage.removeItem(PROG_KEY(CUR.user.k)); }catch(_){}
+  }
 }
 
 // ── STATE ──
@@ -847,6 +861,7 @@ const MAPA_SERVICIOS = {
   'CARDIOLOG':             'Cardiología',
   'ELECTROCARDIOGRAMA':    'Cardiología',
   'OTORRINOLAR':           'Otorrinolaringología',
+  'GASTROENTEROLOG':       'Gastroenterología',
   'UROLOG':                'Urología',
   'PSIQUIATR':             'Psiquiatría',
   'MEDICINA INTERNA':      'Medicina_Interna',
